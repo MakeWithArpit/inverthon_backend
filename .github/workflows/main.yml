@@ -1,0 +1,48 @@
+name: Deploy Django to PythonAnywhere
+
+on:
+  push:
+    branches:
+      - main   # agar branch master hai to master likho
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan ssh.pythonanywhere.com >> ~/.ssh/known_hosts
+
+      - name: Deploy to PythonAnywhere
+        run: |
+          ssh ${{ secrets.PA_USERNAME }}@ssh.pythonanywhere.com << 'EOF'
+            cd ${{ secrets.PA_PROJECT_PATH }}
+            
+            echo "Pulling latest code..."
+            git pull origin main
+
+            echo "Activating virtualenv..."
+            source /home/harendraganwgwar/project/venv/bin/activate
+
+            echo "Installing dependencies..."
+            pip install -r requirements.txt
+
+            echo "Making migrations..."
+            python manage.py makemigrations --noinput
+
+            echo "Applying migrations..."
+            python manage.py migrate --noinput
+
+            echo "Collecting static files..."
+            python manage.py collectstatic --noinput
+
+            echo "Reloading web app..."
+            touch /var/www/${{ secrets.PA_WEBAPP_NAME }}_reload
+          EOF
